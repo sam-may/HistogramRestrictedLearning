@@ -1,0 +1,9 @@
+name: hrl 
+channels:
+  - conda-forge
+dependencies:
+  - python=3.8
+  - pyaml
+  - uproot
+  - tensorflow
+  - rich

@@ -14,7 +14,12 @@ def get_dependencies(env_yaml_file):
 
 setuptools.setup(
     name="HistogramRestrictedLearning",
-    packages=["hrl"],
+    packages=[
+        "hrl",
+        "hrl/prep",
+        "hrl/algorithms",
+        "hrl/evaluation"
+    ],
     install_requires=get_dependencies("environment.yml"),
     python_requires=">=3.8",
 )

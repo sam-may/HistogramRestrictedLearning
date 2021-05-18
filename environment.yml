@@ -5,5 +5,13 @@ dependencies:
   - python=3.8
   - pyaml
   - uproot
+  - awkward
+  - numpy
   - tensorflow
   - rich
+  - pandas
+  - vector
+  - numba
+  - sklearn
+  - scipy
+  - hist[plot]

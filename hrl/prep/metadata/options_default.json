@@ -1,0 +1,19 @@
+{
+    "branches" : [
+        "Photon_pt", "Photon_eta", "Photon_phi", "Photon_mass",
+        "Photon_mvaID", "Photon_electronVeto", "Photon_pixelSeed",
+        "Photon_genPartFlav",
+        "Photon_sieie", "Photon_r9", "Photon_hoe", "Photon_pfRelIso03_chg", "Photon_pfRelIso03_all",
+        "Electron_pt", "Electron_eta", "Electron_phi", "Electron_mass",
+        "Electron_charge", "Electron_mvaFall17V2Iso_WP80", "Electron_convVeto",
+        "Electron_sieie", "Electron_r9", "Electron_hoe", "Electron_pfRelIso03_chg", "Electron_pfRelIso03_all",
+        "Electron_dxy", "Electron_dz",
+        "genWeight", "MET_pt"
+    ],
+    "save_branches" : [
+        "is_photons", "is_dy",
+        "label", "weight", "process_id", "year", "m_ee",
+        "sieie", "r9", "hoe", "pfRelIso03_chg", "pfRelIso03_all",
+        "mvaID"
+    ]
+}

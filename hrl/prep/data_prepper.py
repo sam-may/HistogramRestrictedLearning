@@ -88,10 +88,10 @@ class DataPrepper():
                 job_id = 0
                 for split in file_splits:
                     job_id += 1
-                    if job_id >= 5 and not sample == "Data":
+                    if job_id >= 10 and not sample == "Data":
                         continue
 
-                    if job_id >= 20 and sample == "Data":
+                    if job_id >= 100 and sample == "Data":
                         continue
 
                     output = "output/" + self.tag + "_" + sample + "_" + year + "_" + str(job_id) + ".pkl"

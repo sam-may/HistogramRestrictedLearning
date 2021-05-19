@@ -11,68 +11,21 @@ from scipy.stats import kstest
 
 from sklearn.preprocessing import QuantileTransformer
 
-def Moment(k, tensor, standardize=False, reduction_indices=None, mask=None):
-    # Taken from https://github.com/deepchem/deepchem/blob/6ab2a69fd06270e93cd120b34d130277b4515d9f/contrib/tensorflow_models/utils.py 
-    """Compute the k-th central moment of a tensor, possibly standardized.
-    Args:
-    k: Which moment to compute. 1 = mean, 2 = variance, etc.
-    tensor: Input tensor.
-    standardize: If True, returns the standardized moment, i.e. the central
-      moment divided by the n-th power of the standard deviation.
-    reduction_indices: Axes to reduce across. If None, reduce to a scalar.
-    mask: Mask to apply to tensor.
-    Returns:
-    The mean and the requested moment.
-    """
-    #warnings.warn("Moment is deprecated. "
-    #            "Will be removed in DeepChem 1.4.", DeprecationWarning)
-    if reduction_indices is not None:
-        reduction_indices = numpy.atleast_1d(reduction_indices).tolist()
-
-    # get the divisor
-    if mask is not None:
-        tensor = Mask(tensor, mask)
-        ones = tf.constant(1, dtype=tf.float32, shape=tensor.get_shape())
-        divisor = tf.reduce_sum(
-            Mask(ones, mask), axis=reduction_indices, keep_dims=True)
-    elif reduction_indices is None:
-        divisor = tf.constant(numpy.prod(tensor.get_shape().as_list()), tensor.dtype)
-    else:
-        divisor = 1.0
-        for i in range(len(tensor.get_shape())):
-            if i in reduction_indices:
-                divisor *= tensor.get_shape()[i].value
-        divisor = tf.constant(divisor, tensor.dtype)
-
-    # compute the requested central moment
-    # note that mean is a raw moment, not a central moment
-    mean = tf.math.divide(
-        tf.reduce_sum(tensor, axis=reduction_indices, keep_dims=True), divisor)
-    delta = tensor - mean
-    if mask is not None:
-        delta = Mask(delta, mask)
-    moment = tf.math.divide(
-      tf.reduce_sum(
-          math_ops.pow(delta, k), axis=reduction_indices, keep_dims=True),
-      divisor)
-    moment = tf.squeeze(moment, reduction_indices)
-    if standardize:
-        moment = tf.multiply(
-            moment,
-            math_ops.pow(
-                tf.rsqrt(Moment(2, tensor, reduction_indices=reduction_indices)[1]),
-                k))
-
-    return tf.squeeze(mean, reduction_indices), moment
-
-
 def classification_dnn(n_features, compile = True):
     input = keras.layers.Input(shape = (n_features) , name = "input")
 
-    layer_1 = keras.layers.Dense(50, activation = "relu", kernel_initializer = "lecun_uniform", name = "dense_1")(input)
-    layer_2 = keras.layers.Dense(50, activation = "relu", kernel_initializer = "lecun_uniform", name = "dense_2")(layer_1)
+    layer_1 = keras.layers.Dense(100, activation = "relu", kernel_initializer = "lecun_uniform", name = "dense_1")(input)
+    layer_1 = keras.layers.BatchNormalization()(layer_1)
+    layer_1 = keras.layers.Dropout(0.1)(layer_1)
+    layer_2 = keras.layers.Dense(100, activation = "relu", kernel_initializer = "lecun_uniform", name = "dense_2")(layer_1)
+    layer_2 = keras.layers.BatchNormalization()(layer_2)
+    layer_2 = keras.layers.Dropout(0.2)(layer_2)
+    layer_3 = keras.layers.Dense(100, activation = "relu", kernel_initializer = "lecun_uniform", name = "dense_3")(layer_2)
+    layer_3 = keras.layers.BatchNormalization()(layer_3)
+    layer_3 = keras.layers.Dropout(0.3)(layer_3)
+    layer_4 = keras.layers.Dense(100, activation = "relu", kernel_initializer = "lecun_uniform", name = "dense_4")(layer_3)
 
-    output = keras.layers.Dense(1, activation = "sigmoid", kernel_initializer = "lecun_uniform", name = "output")(layer_2)
+    output = keras.layers.Dense(1, activation = "sigmoid", kernel_initializer = "lecun_uniform", name = "output")(layer_4)
 
     model = keras.models.Model(inputs = [input], outputs = [output])
 
@@ -91,9 +44,9 @@ def classification_dnn(n_features, compile = True):
     return model
 
 
-n_bins = 10
-def histogram_loss():
-    def calc_histogram_loss(y_true, y_pred):
+n_bins = 25
+def naive_loss():
+    def calc_naive_loss(y_true, y_pred):
         pred_mc = y_pred[y_true == 1]
         pred_data = y_pred[y_true == 0]
 
@@ -106,15 +59,46 @@ def histogram_loss():
         #return tf.square(mean_mc - mean_data) / (tf.square(mean_mc) + tf.square(mean_data))
         return (tf.square(mean_mc - mean_data) / (tf.square(mean_mc) + tf.square(mean_data))) + (tf.square(std_mc - std_data) / (tf.square(std_mc) + tf.square(std_data)))
 
-    return calc_histogram_loss
+    return calc_naive_loss
 
-"""
+BINS = tf.expand_dims(
+        tf.cast(tf.linspace(0.0, 1.0, n_bins), tf.float64),
+        0
+) # shape [1, n_bins]
+STEP_SIZE = tf.cast(BINS[0][1] - BINS[0][0], tf.float64) 
+def make_histogram(pred, norm):
+    return tf.reduce_sum(tf.nn.relu( 1 - (tf.abs(pred - BINS) / STEP_SIZE)), axis = 0) / norm
+
+
 def histogram_loss():
     def calc_histogram_loss(y_true, y_pred):
-        pred_mc = y_pred[y_true == 1]
-        pred_data = y_pred[y_true == 0]
-"""
-        
+        y_pred = tf.cast(y_pred, tf.float64)
+        # Split y_true into two arrays corresponding to data and mc entries
+        mask = tf.equal(y_true, 0)
+        mask = tf.cast(mask, tf.int32)
+        y_pred_mc, y_pred_data = tf.dynamic_partition(y_pred, mask, 2)
+
+        # Get number of entries in data and MC
+        n_data = tf.cast(
+                tf.reduce_sum(mask),
+                tf.float64
+        )
+        n_mc = tf.cast(
+                tf.reduce_sum(1 - mask),
+                tf.float64
+        )
+
+        # Reshape arrays so we can subtract 1d arrays of different lengths
+        # BINS has shape [1, n_bins], so we want y_pred_x to have shape [n_x, 1]
+        y_pred_data = tf.expand_dims(y_pred_data, 1) # shape [n_data, 1]
+        y_pred_mc = tf.expand_dims(y_pred_mc, 1) # shape [n_mc, 1]
+
+        # Make histograms 
+        data_histogram = make_histogram(y_pred_data, n_data)
+        mc_histogram = make_histogram(y_pred_mc, n_mc)
+
+        return tf.reduce_sum(tf.square(data_histogram - mc_histogram))
+    return calc_histogram_loss
 
 
 def hrl_dnn(n_features, alpha):
@@ -209,11 +193,12 @@ if do_photons:
 if do_full:
     aucs = []
     p_values = []
-    alphas = [0.0, 1000000.0]
+    alphas = [0.0, 100.0]
     for alpha in alphas:
         dnn, shared_network = hrl_dnn(len(training_features), alpha)
 
-        dnn.fit([photons_features, dys_features], [photons_label, dys_label], epochs = 50, batch_size = 10000)
+        dnn.fit([photons_features, dys_features], [photons_label, dys_label], epochs = 1, batch_size = 512)
+        dnn.fit([photons_features, dys_features], [photons_label, dys_label], epochs = 5, batch_size = 10000)
 
         pred = shared_network.predict(photons_features, 10000)
     
@@ -221,8 +206,8 @@ if do_full:
         auc = metrics.auc(fpr, tpr)
         aucs.append(auc)
 
-        pred_data = shared_network.predict(data)
-        pred_mc = shared_network.predict(mc)
+        pred_data = shared_network.predict(data, 10000)
+        pred_mc = shared_network.predict(mc, 10000)
 
         t = QuantileTransformer(n_quantiles = 100)
         t.fit(pred_data)
@@ -230,9 +215,9 @@ if do_full:
         pred_data = t.transform(pred_data).flatten()
         pred_mc = t.transform(pred_mc).flatten()
 
-
-        #pred_data = -numpy.log(1 - pred_data)
-        #pred_mc = -numpy.log(1 - pred_mc)
+        shorter = len(pred_data) if len(pred_data) < len(pred_mc) else len(pred_mc)
+        pred_data = pred_data[:shorter]
+        pred_mc = pred_mc[:shorter]
 
         res = kstest(pred_data, pred_mc)[0]
         p_values.append(res)

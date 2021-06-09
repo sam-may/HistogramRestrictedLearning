@@ -5,7 +5,7 @@
 **1. Clone repository**
 ```
 git clone https://github.com/sam-may/HistogramRestrictedLearning.git
-cd AutoDQM_Autoencoder
+cd HistogramRestrictedLearning
 ```
 **2. Install dependencies**
 

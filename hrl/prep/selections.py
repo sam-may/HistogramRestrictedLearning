@@ -2,6 +2,9 @@ import awkward
 import vector
 import numpy
 
+import logging
+logger = logging.getLogger(__name__)
+
 import hrl.prep.selection_utils as utils
 
 def select_photons(events, options):

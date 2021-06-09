@@ -20,9 +20,6 @@ setuptools.setup(
         "hrl/algorithms",
         "hrl/evaluation"
     ],
-    #scripts=[
-    #    "scripts/scale1fb.py"
-    #],
     install_requires=get_dependencies("environment.yml"),
     python_requires=">=3.8,!=3.9",
 )

@@ -5,8 +5,7 @@ import numpy
 import glob
 import json
 import copy
-
-from hrl.utils import setup_logger
+import logging
 
 def calc_scale1fb(xs, sum_weights):
     """
@@ -71,18 +70,14 @@ class Scale1fbHelper():
     :type input: str
     :param output_file: path to output json file with samples, xs, and scale1fb
     :type output_file: str
-    :param logger: logger to print out debug info
-    :type logger: logger.getLogger(), optional
     """
-    def __init__(self, input, output_file, logger = None):
+    def __init__(self, input, output_file):
         with open(input, "r") as f_in:
             self.input = json.load(f_in)
 
         self.output_file = output_file
 
-        self.logger = logger
-        if self.logger is None:
-            self.logger = setup_logger("DEBUG", "output/scale1fb_log.txt")
+        self.logger = logging.getLogger(__name__)
 
     def run(self):
         """

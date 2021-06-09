@@ -6,6 +6,7 @@ import numpy
 import glob
 import os
 import multiprocessing
+import logging
 
 from hrl.utils import setup_logger
 from hrl.prep import selections
@@ -21,12 +22,10 @@ class DataPrepper():
     :type inputs: str
     :param options: path to json file specifying options for which vars to store, preprocessing methods, etc
     :type options: str
-    :param logger: logger to print out debug info
-    :type logger: logger.getLogger(), optional
     :param fast: flag to just run over a few files
     :type fast: bool, optional
     """
-    def __init__(self, tag, inputs, options, logger = None, fast = False):
+    def __init__(self, tag, inputs, options, fast = False):
         self.tag = tag
 
         with open(inputs, "r") as f_in:
@@ -35,9 +34,7 @@ class DataPrepper():
         with open(options, "r") as f_in:
             self.options = json.load(f_in)
 
-        self.logger = logger
-        if self.logger is None:
-            self.logger = setup_logger("DEBUG", "output/log_%s.txt" % self.tag)
+        logger = logging.getLogger(__name__)
 
         self.fast = fast
         self.nCores = 16

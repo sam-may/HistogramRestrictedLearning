@@ -12,6 +12,5 @@ dependencies:
   - pandas
   - vector
   - numba
-  - sklearn
   - scipy
   - hist[plot]

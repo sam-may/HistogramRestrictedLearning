@@ -1,7 +1,7 @@
 {
     "DY": {
         "2016": {
-            "fpj": 10,
+            "fpj": 5,
             "metadata": {
                 "n_events": 120632078,
                 "scale1fb": 3.1796499654235375e-06,
@@ -16,7 +16,7 @@
     },
     "Data": {
         "2016": {
-            "fpj": 10,
+            "fpj": 5,
             "metadata": {},
             "paths": [
                 "/hadoop/cms/store/user/hmei/nanoaod_runII/HHggtautau/DoubleEG_Run2016B-17Jul2018_ver1-v1_MINIAOD_v0.6_20201021/",
@@ -33,7 +33,7 @@
     },
     "GJets_HT-100To200": {
         "2016": {
-            "fpj": 10,
+            "fpj": 5,
             "metadata": {
                 "n_events": 10104155,
                 "scale1fb": 0.8542030481519731,
@@ -49,7 +49,7 @@
     },
     "GJets_HT-200To400": {
         "2016": {
-            "fpj": 10,
+            "fpj": 5,
             "metadata": {
                 "n_events": 20527506,
                 "scale1fb": 0.11107048269770327,
@@ -65,7 +65,7 @@
     },
     "GJets_HT-400To600": {
         "2016": {
-            "fpj": 10,
+            "fpj": 5,
             "metadata": {
                 "n_events": 5060070,
                 "scale1fb": 0.053951822800870346,
@@ -81,7 +81,7 @@
     },
     "GJets_HT-40To100": {
         "2016": {
-            "fpj": 10,
+            "fpj": 5,
             "metadata": {
                 "n_events": 9326139,
                 "scale1fb": 2.476909254730173,
@@ -97,7 +97,7 @@
     },
     "GJets_HT-600ToInf": {
         "2016": {
-            "fpj": 10,
+            "fpj": 5,
             "metadata": {
                 "n_events": 5080857,
                 "scale1fb": 0.018599224500906047,

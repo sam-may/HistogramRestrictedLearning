@@ -7,10 +7,11 @@ dependencies:
   - uproot
   - awkward
   - numpy
-  - tensorflow
+  - tensorflow>=2.5
   - rich
   - pandas
   - vector
   - numba
   - scipy
-  - hist[plot]
+  - pandas
+  - sklearn

@@ -23,10 +23,15 @@ def select_photons(events, options):
     eta_cut = (eta_cut1) & (eta_cut2 | eta_cut3)
 
     e_veto_cut = photons.electronVeto >= 0.5
+    hoe_cut = photons.hoe <= 0.08
+    r9_cut = photons.r9 >= 0.5
+    sieie_cut = photons.sieie <= 0.35
+    iso_cut = photons.pfRelIso03_all <= 0.1
 
-    all_cuts = pt_cut & eta_cut & e_veto_cut
 
-    cut_diagnostics.add_cuts([pt_cut, eta_cut, e_veto_cut, all_cuts], ["pt", "eta", "e-veto", "all"])
+    all_cuts = pt_cut & eta_cut & e_veto_cut & hoe_cut & r9_cut & sieie_cut & iso_cut
+
+    cut_diagnostics.add_cuts([pt_cut, eta_cut, e_veto_cut, hoe_cut, r9_cut, sieie_cut, iso_cut, all_cuts], ["pt", "eta", "e-veto", "hoe", "r9", "sieie", "iso", "all"])
     
     return photons[all_cuts]
 
@@ -68,11 +73,16 @@ def select_electrons(events, options):
     ip_z_cut = abs(electrons.dz) < 0.2
     ip_cut = ip_xy_cut & ip_z_cut
 
-    id_cut = electrons.mvaFall17V2Iso_WP80 == True
+    id_cut = electrons.mvaFall17V2Iso_WP90 == True
 
-    all_cuts = pt_cut & eta_cut & ip_cut & id_cut
+    hoe_cut = electrons.hoe <= 0.08
+    r9_cut = electrons.r9 >= 0.5
+    sieie_cut = electrons.sieie <= 0.35
+    iso_cut = electrons.pfRelIso03_all <= 0.1 
 
-    cut_diagnostics.add_cuts([pt_cut, eta_cut, ip_cut, id_cut, all_cuts], ["pt", "eta", "ip", "id", "all"])
+    all_cuts = pt_cut & eta_cut & ip_cut & id_cut & hoe_cut & r9_cut & sieie_cut & iso_cut
+
+    cut_diagnostics.add_cuts([pt_cut, eta_cut, ip_cut, id_cut, hoe_cut, r9_cut, sieie_cut, iso_cut, all_cuts], ["pt", "eta", "ip", "id", "hoe", "r9", "sieie", "iso", "all"])
     return electrons[all_cuts]
 
 
@@ -118,7 +128,8 @@ def select_dy_events(events, electrons, options):
     cut_diagnostics.add_cuts([mass_cut, os_cut, all_cuts], ["m_ee in m_Z +/- 5 GeV", "opposite sign cut", "all"])
 
     return electrons[all_cuts]
-        
+
+
 def label_electrons(electrons, is_data, options):
     """
 

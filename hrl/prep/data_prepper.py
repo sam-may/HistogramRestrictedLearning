@@ -7,6 +7,7 @@ import glob
 import os
 import multiprocessing
 import logging
+logger = logging.getLogger(__name__)
 
 from hrl.utils import setup_logger
 from hrl.prep import selections
@@ -34,8 +35,6 @@ class DataPrepper():
         with open(options, "r") as f_in:
             self.options = json.load(f_in)
 
-        logger = logging.getLogger(__name__)
-
         self.fast = fast
         self.nCores = 16
 
@@ -46,9 +45,9 @@ class DataPrepper():
         apply preprocessing scheme,
         and write events to a pandas dataframe
         """
-        self.logger.info("[DataPrepper : run] Running DataPrepper with the following options")
+        logger.info("[DataPrepper : run] Running DataPrepper with the following options")
         for key, value in self.options.items():
-            self.logger.info("\t %s : %s" % (key, str(value)))
+            logger.info("\t %s : %s" % (key, str(value)))
 
         self.prepare_jobs()
         self.submit_jobs()
@@ -85,10 +84,12 @@ class DataPrepper():
                 job_id = 0
                 for split in file_splits:
                     job_id += 1
-                    if job_id >= 10 and not sample == "Data":
+                    #if job_id >= 2:
+                    #    continue
+                    if job_id >= 10 and sample == "DY":
                         continue
 
-                    if job_id >= 100 and sample == "Data":
+                    if job_id >= 30 and sample == "Data":
                         continue
 
                     output = "output/" + self.tag + "_" + sample + "_" + year + "_" + str(job_id) + ".pkl"
@@ -100,9 +101,9 @@ class DataPrepper():
                     })
                     self.outputs.append(output)
 
-        self.logger.info("Running %d total jobs over %d cores" % (len(self.jobs_manager), self.nCores))
+        logger.info("Running %d total jobs over %d cores" % (len(self.jobs_manager), self.nCores))
         for idx, job in enumerate(self.jobs_manager):
-            self.logger.debug("Job %d: %s" % (idx, str(job)))
+            logger.debug("Job %d: %s" % (idx, str(job)))
 
         return
 
@@ -121,7 +122,7 @@ class DataPrepper():
                     )
             )
 
-            self.logger.debug("Running job %d/%d: %s" % (idx+1, len(self.jobs_manager), str(job))) 
+            logger.debug("Running job %d/%d: %s" % (idx+1, len(self.jobs_manager), str(job))) 
             running_procs[-1].start()
 
             while True:
@@ -191,14 +192,14 @@ class DataPrepper():
             branches = [branch for branch in branches if "Gen" not in branch and "gen" not in branch]        
 
         for idx, file in enumerate(job_metadata["files"]):
-            if idx >= 3: 
-                continue
+            #if idx >= 1: 
+            #    continue
             
             with uproot.open(file) as f:
                 tree = f["Events"]
                 events.append(tree.arrays(branches, library = "ak", how = "zip"))
 
-            self.logger.debug("Loaded %d events from file %s" % (len(events[-1]), file))
+            logger.debug("Loaded %d events from file %s" % (len(events[-1]), file))
 
 
         events = awkward.concatenate(events)
@@ -251,6 +252,15 @@ class DataPrepper():
         photons = selections.select_photons(events, {})
         photons = selections.label_photons(photons, {})
         photons = awkward.flatten(photons)
+
+        logger.debug("[DataPrepper : photon_selection] Found %d prompt and %d fake photons (before trimming prompts)." % (awkward.sum(photons.label == 1), awkward.sum(photons.label == 0)))
+        
+
+        prompt_factor = float(awkward.sum(photons.label == 0)) / float(awkward.sum(photons.label == 1))
+        prompt_cut = ((photons.label == 1) & (numpy.random.uniform(size = len(photons)) < prompt_factor)) | (photons.label == 0)
+        photons = photons[prompt_cut]
+
+        logger.debug("[DataPrepper : photon_selection] Found %d prompt and %d fake photons (after trimming prompts)." % (awkward.sum(photons.label == 1), awkward.sum(photons.label == 0)))
 
         return photons
 

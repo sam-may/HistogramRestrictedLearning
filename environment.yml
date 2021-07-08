@@ -7,11 +7,10 @@ dependencies:
   - uproot
   - awkward
   - numpy
-  - tensorflow>=2.5
+  - tf-nightly
   - rich
   - pandas
   - vector
   - numba
   - scipy
   - pandas
-  - sklearn

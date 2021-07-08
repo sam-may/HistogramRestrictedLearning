@@ -13,6 +13,10 @@ Dependencies are listed in ```environment.yml```. Install with
 ```
 conda env create -f environment.yml
 ```
+and activate with
+```
+conda activate hrl
+```
 
 **3. Install hrl**
 
@@ -29,6 +33,11 @@ to avoid rerunning the whole installation every time there is a change.
 Once your setup is installed, you can activate your python environment with
 ```
 conda activate hrl
+```
+and then two additional packages need to be installed via `pip`:
+```
+pip install sklearn
+pip install yahist
 ```
 
 **Note**: `CMSSW` environments can interfere with `conda` environments. Recommended to unset your CMSSW environment (if any) by running

@@ -1,11 +1,11 @@
 import json
 import matplotlib.pyplot as plt
 
-with open("output/test_dnn_results.json", "r") as f_in:
+with open("output/test_dnn_results_ks_d_value.json") as f_in:
     results = json.load(f_in)
 
 fig, ax1 = plt.subplots()
-ax1.set_xscale('symlog')
+ax1.set_xscale('symlog', linthreshx = 0.001)
 ax2 = ax1.twinx()
 
 ax1.errorbar(results["lambda"], results["auc_mean"], yerr = results["auc_std"], label = "AUC", color = "red", marker = 'o')
@@ -19,5 +19,8 @@ ax1.tick_params(axis = "y", colors = "red")
 ax2.set_ylabel(r"$\log_{10}(\mathrm{p value})$", color = "blue")
 ax2.tick_params(axis = "y", colors = "blue")
 
-fig.savefig("output/dnn_results.pdf")
+ax1.set_ylim([0.5, 1.0])
+ax2.set_ylim([-15, 0])
+
+fig.savefig("output/dnn_results_ks_d_value.pdf")
 

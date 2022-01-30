@@ -25,7 +25,7 @@ DEFAULT_OPTIONS = {
         "early_stopping" : True,
         "early_stopping_rounds" : 3
     },
-    "model" : "cl", # one of "cl", "hrl", "grl"
+    "model" : "hrl", # one of "cl", "hrl", "grl"
     "hrl" : {
         "n_bins" : 10
     },
@@ -33,7 +33,10 @@ DEFAULT_OPTIONS = {
         "n_latent" : 25,
         "n_extra_layers" : 2
     },
-    "lambda" : 0.0,
+    "lambda" : 100.0,
+    "n_initial_epochs" : 5, # initial classification-only epochs with lambda set to 0
+    "scale_lambda" : False,
+    "n_scaling_epochs" : 5,
     "architecture" : "dense",
     "arch_details" : {
         "n_layers" : 5,
@@ -85,8 +88,14 @@ class DNNHelper():
 
 
     def convert_to_tensor(self, x):
-        x = numpy.array(x).tolist()
-        t = tf.convert_to_tensor(x)
+        if x.fields:
+            y = numpy.empty((len(x), len(x.fields)), dtype = numpy.float32)
+            for idx, field in enumerate(x.fields):
+                y[:,idx] = awkward.to_numpy(x[field])
+        else:
+            y = x
+
+        t = tf.convert_to_tensor(y)
         t = tf.where(
                 (tf.math.is_nan(t)) | (tf.math.is_inf(t)),
                 tf.zeros_like(t),
@@ -158,12 +167,46 @@ class DNNHelper():
             for x in ["train", "test", "val"]:
                 self.metadata[y][x] = {}
                 self.metadata[y][x]["n_events_total"] = len(self.y[x]["output_%s" % y])
-                self.metadata[y][x]["n_events_pos"] = len(self.y[x]["output_%s" % y][self.y[x]["output_%s" % y] == 1]) 
-                self.metadata[y][x]["n_events_neg"] = len(self.y[x]["output_%s" % y][self.y[x]["output_%s" % y] == 0]) 
+                self.metadata[y][x]["n_events_pos"] = int(
+                        tf.reduce_sum(
+                            tf.where(
+                                self.y[x]["output_%s" % y] == 1,
+                                tf.ones_like(self.y[x]["output_%s" % y]),
+                                tf.zeros_like(self.y[x]["output_%s" % y])
+                            )
+                        )
+                )
+                self.metadata[y][x]["n_events_neg"] = int(
+                        tf.reduce_sum(
+                            tf.where(
+                                self.y[x]["output_%s" % y] == 0,
+                                tf.ones_like(self.y[x]["output_%s" % y]),
+                                tf.zeros_like(self.y[x]["output_%s" % y])
+                            )
+                        )
+                )
 
-                self.metadata[y][x]["weight_total"] = float(sum(self.weights[x]["weight_%s" % y]))
-                self.metadata[y][x]["weight_pos"] = float(sum(self.weights[x]["weight_%s" % y][self.y[x]["output_%s" % y] == 1]))
-                self.metadata[y][x]["weight_neg"] = float(sum(self.weights[x]["weight_%s" % y][self.y[x]["output_%s" % y] == 0]))
+                self.metadata[y][x]["weight_total"] = float(
+                        tf.reduce_sum(self.weights[x]["weight_%s" % y])
+                )
+                self.metadata[y][x]["weight_pos"] = float(
+                        tf.reduce_sum(
+                            tf.where(
+                                self.y[x]["output_%s" % y] == 1,
+                                self.weights[x]["weight_%s" % y],
+                                tf.zeros_like(self.weights[x]["weight_%s" % y])
+                            )
+                        )
+                )
+                self.metadata[y][x]["weight_neg"] = float(
+                        tf.reduce_sum(
+                            tf.where(
+                                self.y[x]["output_%s" % y] == 0,
+                                self.weights[x]["weight_%s" % y],
+                                tf.zeros_like(self.weights[x]["weight_%s" % y])
+                            )
+                        )
+                )
 
                 for z, n in self.metadata[y][x].items():
                     logger.debug("[DNNHelper : load_data] For event type '%s', set '%s', there are '%s' : %.3f." % (y, x, z, n))
@@ -182,7 +225,12 @@ class DNNHelper():
         elif self.config["model"] == "grl":
             self.model = models.GRLModel(self.config)
 
-        self.model.compile()
+    
+    def schedule_lambda(self, epoch):
+        """
+
+        """
+        return -999
 
 
     def train(self):
@@ -190,6 +238,7 @@ class DNNHelper():
 
         """
         self.metadata["loss"] = {}
+        self.metadata["lambda"] = []
         self.metadata["cl"]["training"] = {}
         if self.has_da_events:
             self.metadata["da"]["training"] = {}
@@ -210,7 +259,20 @@ class DNNHelper():
                 if self.bad_epochs >= self.config["training"]["early_stopping_rounds"]:
                     logger.info("[DNNHelper : train] STOPPING TRAINING. Test loss has not increased for %d epochs. Best loss of %.6f was obtained on the %d-th epoch." % (self.bad_epochs, self.best_loss, self.best_epoch))
                     break
-            
+
+            if i <= self.config["n_initial_epochs"]:
+                lambda_epoch = 0.0
+            else:
+                if self.config["scale_lambda"]:
+                    lambda_epoch = self.schedule_lambda(i)
+                else:
+                    lambda_epoch = self.config["lambda"]
+
+            self.model.config["lambda"] = lambda_epoch
+            self.model.compile()
+
+            self.metadata["lambda"].append(lambda_epoch)
+
             history = self.model.model.fit(
                 self.X["train"],
                 self.y["train"],

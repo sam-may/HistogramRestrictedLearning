@@ -4,14 +4,93 @@ from tensorflow import keras
 from hrl.algorithms.losses import histogram_loss
 from hrl.algorithms.gradient_reversal import GradReverse
 
+
+def core_layer(input_shape, name, n_units = 50, dropout_rate = 0.0, batch_norm = False, activation = "elu"):
+    """
+    Configurable dense DNN layer with choice of:
+        - number of nodes
+        - batch normalization
+        - activation function
+        - dropout
+    """
+
+    layers = []
+
+    # 1. Dense
+    dense = keras.layers.Dense(
+            n_units,
+            activation = None,
+            kernel_initializer = "lecun_uniform",
+            name = "dense_%s" % name,
+            input_shape = input_shape
+    )
+    layers.append(dense)
+
+    # 2. Batch normalization
+    if batch_norm:
+        batch_norm_layer = keras.layers.BatchNormalization(
+                name = "batch_norm_%s" % name,
+                input_shape = (n_units,)
+        )
+        layers.append(batch_norm_layer)
+
+    # 3. Activation function
+    if activation is not None:
+        activation_layer = keras.layers.Activation(
+                activation,
+                name = "activation_%s" % name,
+                input_shape = (n_units,)
+        )
+        layers.append(activation_layer)
+
+    # 4. Dropout
+    if dropout_rate > 0:
+        dropout_layer = keras.layers.Dropout(
+            dropout_rate,
+            name = "dropout_%s" % name,
+            input_shape = (n_units,)
+        )
+        layers.append(dropout_layer)
+
+    return layers
+
+
+##############
+### Models ###
+##############
+
 class ClassificationModel():
     """
     A binary classification model (no DA)
     """
     def __init__(self, config):
         self.config = config
-        self.model = dense(self.config, input_name = "input_cl", output_name = "output_cl")
 
+        input_cl = keras.layers.Input(shape = (self.config["n_features"],), name = "input_cl")
+        cl_component = input_cl
+
+        # Classification DNN
+        for i in range(self.config["arch_details"]["n_layers"]):
+            layers = core_layer(
+                input_shape = (self.config["n_features"],),
+                name = "cls_%d" % i,
+                n_units = self.config["arch_details"]["n_nodes"],
+                dropout_rate = self.config["arch_details"]["dropout_rate"],
+                batch_norm = self.config["arch_details"]["batch_norm"],
+                activation = self.config["arch_details"]["activation"]
+            )
+            for l in layers:
+                cl_component = l(cl_component)
+
+        output_cl = keras.layers.Dense(1, activation = "sigmoid", name = "output_cl")(cl_component) 
+
+        self.model = keras.models.Model(
+                inputs = input_cl,
+                outputs = output_cl,
+                name = "cl_model"
+        )
+
+        self.model.summary()
 
     def compile(self):
         self.model.compile(
@@ -30,23 +109,46 @@ class HRLModel():
     """
     def __init__(self, config):
         self.config = config
-        self.base_model = dense(self.config)
 
         input_cl = keras.layers.Input(shape = (self.config["n_features"],), name = "input_cl")
         input_da = keras.layers.Input(shape = (self.config["n_features"],), name = "input_da")
 
-        dnn_cl = self.base_model(input_cl)
-        dnn_da = self.base_model(input_da)
-
-        output_cl = keras.layers.Layer(name = "output_cl")(dnn_cl)
-        output_da = keras.layers.Layer(name = "output_da")(dnn_da)
+        cl_component = input_cl
+        da_component = input_da
+    
+        # Shared DNN
+        for i in range(self.config["arch_details"]["n_layers"]):
+            layers = core_layer(
+                input_shape = (self.config["n_features"],),
+                name = "shared_%d" % i,
+                n_units = self.config["arch_details"]["n_nodes"],
+                dropout_rate = self.config["arch_details"]["dropout_rate"],
+                batch_norm = self.config["arch_details"]["batch_norm"],
+                activation = self.config["arch_details"]["activation"]
+            )
+            for l in layers:
+                cl_component = l(cl_component)
+                da_component = l(da_component)
+ 
+        output = keras.layers.Dense(1, activation = "sigmoid", name = "shared_output", input_shape = (self.config["arch_details"]["n_nodes"],))
+        cl_component = output(cl_component)
+        da_component = output(da_component)
+        
+        output_cl = keras.layers.Layer(name = "output_cl")(cl_component)
+        output_da = keras.layers.Layer(name = "output_da")(da_component)
 
         self.model = keras.models.Model(
                 inputs = [input_cl, input_da],
                 outputs = [output_cl, output_da],
                 name = "full_hrl_model"
         )
-                
+
+        self.cl_model = keras.models.Model(
+                inputs = input_cl,
+                outputs = output_cl,
+                name = "cl_model"
+        )                
+
         self.model.summary()
 
 
@@ -65,7 +167,7 @@ class HRLModel():
 
 
     def predict(self, X):
-        return list(self.base_model.predict(X, batch_size = 10000).flatten())
+        return list(self.cl_model.predict(X, batch_size = 10000).flatten())
 
 
 class GRLModel():
@@ -78,17 +180,58 @@ class GRLModel():
         input_cl = keras.layers.Input(shape = (self.config["n_features"],), name = "input_cl")
         input_da = keras.layers.Input(shape = (self.config["n_features"],), name = "input_da")
 
-        dense = keras.layers.Dense(100, activation = "elu", name = "dense_shared_1", input_shape = (self.config["n_features"],))
+        cl_component = input_cl
+        da_component = input_da
 
-        dense_cl = dense(input_cl)
-        dense_da = dense(input_da)
+        # Shared DNN
+        for i in range(self.config["arch_details"]["n_layers"]):
+            layers = core_layer(
+                input_shape = (self.config["n_features"],),
+                name = "shared_%d" % i,
+                n_units = self.config["arch_details"]["n_nodes"],
+                dropout_rate = self.config["arch_details"]["dropout_rate"],
+                batch_norm = self.config["arch_details"]["batch_norm"],
+                activation = self.config["arch_details"]["activation"]
+            )
+            for l in layers:
+                cl_component = l(cl_component) 
+                da_component = l(da_component)
 
-        cl_component = keras.layers.Dense(100, activation = "elu", name = "dense_cl_1")(dense_cl)
-        
-        da_reversal = GradReverse()(dense_da)
-        da_component = keras.layers.Dense(100, activation = "elu", name = "dense_da_1")(da_reversal)
+    
+        # Classification DNN
+        for i in range(self.config["grl"]["n_extra_layers"]):
+            last_layer = (i == self.config["grl"]["n_extra_layers"] - 1)
+            layers = core_layer(
+                input_shape = (self.config["arch_details"]["n_nodes"],),
+                name = "cls_%d" % i, 
+                n_units = self.config["arch_details"]["n_nodes"],
+                dropout_rate = self.config["arch_details"]["dropout_rate"] if not last_layer else 0,
+                batch_norm = self.config["arch_details"]["batch_norm"] if not last_layer else False,
+                activation = self.config["arch_details"]["activation"]
+            )
+
+            for l in layers:
+                cl_component = l(cl_component)
 
         output_cl = keras.layers.Dense(1, activation = "sigmoid", name = "output_cl")(cl_component)
+    
+
+        # Gradient Reversal DNN
+        da_component = GradReverse()(da_component)
+        for i in range(self.config["grl"]["n_extra_layers"]):
+            last_layer = (i == self.config["grl"]["n_extra_layers"] - 1)
+            layers = core_layer(
+                input_shape = (self.config["arch_details"]["n_nodes"],),
+                name = "da_%d" % i,   
+                n_units = self.config["arch_details"]["n_nodes"],
+                dropout_rate = self.config["arch_details"]["dropout_rate"] if not last_layer else 0,
+                batch_norm = self.config["arch_details"]["batch_norm"] if not last_layer else False,
+                activation = self.config["arch_details"]["activation"]
+            )
+
+            for l in layers:
+                da_component = l(da_component)
+
         output_da = keras.layers.Dense(1, activation = "sigmoid", name = "output_da")(da_component)
 
         self.model = keras.models.Model(
@@ -110,6 +253,7 @@ class GRLModel():
                 outputs = output_da,
                 name = "da_model"
         )
+
 
 
     def compile(self):
@@ -134,77 +278,4 @@ class GRLModel():
 
         return list(model.predict(X, batch_size = 10000).flatten())   
         
-
-### DNN architecture helper functions ###
-
-def dense_layers(input_shape, config, name, n_outputs, output_name = "output"):
-    kparam = config["arch_details"]
-
-    layer = core_layer(input_shape, name, n_units = kparam["n_nodes"], batch_norm = kparam["batch_norm"], activation = kparam["activation"])
-    for i in range(kparam["n_layers"]):
-        layer = core_layer(input_shape, name, n_units = kparam["n_nodes"], batch_norm = kparam["batch_norm"], activation = kparam["activation"])(layer)
-
-    if n_outputs == 1:
-        output = keras.layers.Dense(1, activation = "sigmoid", name = output_name, kernel_initializer = "lecun_uniform")(layer)
-    else:
-        output = keras.layers.Dense(n_outputs, activation = kparam["activation"], name = output_name, kernel_initializer = "lecun_uniform")(layer)
-
-    return output
-
-def dense(config, input_layer = None, input_name = "input", output_name = "output", n_outputs = 1):
-    """
-    A fully-connected DNN with a single sigmoid-activated output.
-    """
-    kparam = config["arch_details"]
-
-    if input_layer is None:
-        input = keras.layers.Input(shape = (config["n_features"],), name = input_name)
-    else:
-        input = input_layer
-
-    layer = input
-    for i in range(kparam["n_layers"]):
-        layer = core_layer(
-            input = layer,
-            name = "%d" % i,
-            n_units = kparam["n_nodes"],
-            batch_norm = kparam["batch_norm"],
-            activation = kparam["activation"]
-        )
-
-    if n_outputs == 1:
-        output = keras.layers.Dense(1, activation = "sigmoid", name = output_name, kernel_initializer = "lecun_uniform")(layer)
-    else:
-        output = keras.layers.Dense(n_outputs, activation = kparam["activation"], name = output_name, kernel_initializer = "lecun_uniform")(layer) 
-
-    model = keras.models.Model(inputs = input, outputs = output)
-    model.summary()
-    return model
-
-
-def core_layer(input, name, n_units = 50, dropout_rate = 0.0, batch_norm = False, activation = "elu"):
-    """
-    """
-
-    # 1. Dense
-    layer = keras.layers.Dense(
-            n_units,
-            activation = None,
-            kernel_initializer = "lecun_uniform",
-            name = "dense_%s" % name
-    )(input)
-
-    # 2. Batch normalization
-    if batch_norm:
-        layer = keras.layers.BatchNormalization(name = "batch_norm_%s" % name)(layer)
-
-    # 3. Activation
-    if activation is not None:
-        layer = keras.layers.Activation(activation, name = "activation_%s" % name)(layer)
-
-    # 4. Dropout
-    if dropout_rate > 0:
-        layer = keras.layers.Dropout(dropout_rate, name = "dropout_%s" % name)(layer)
-
-    return layer
 

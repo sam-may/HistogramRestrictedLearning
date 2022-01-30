@@ -25,12 +25,13 @@ DEFAULT_OPTIONS = {
         "early_stopping" : True,
         "early_stopping_rounds" : 3
     },
-    "model" : "hrl", # one of "cl", "hrl", "grl"
+    "model" : "cl", # one of "cl", "hrl", "grl"
     "hrl" : {
         "n_bins" : 10
     },
     "grl" : {
-        "n_latent" : 25
+        "n_latent" : 25,
+        "n_extra_layers" : 2
     },
     "lambda" : 0.0,
     "architecture" : "dense",
@@ -304,10 +305,17 @@ class DNNHelper():
         """
         logger.info("[DNNHelper : save] Saving events and metadata to directory '%s'." % (self.output_dir))
 
+        self.best_model = self.output_dir + "/models/epoch_%d" % self.best_epoch
+        os.system("mkdir -p %s" % (self.output_dir + "/model_best"))
+        os.system("cp -r %s %s" % (self.best_model, self.output_dir + "/model_best"))
+        logger.info("[DNNHelper : save] Best model saved to path '%s'." % (self.output_dir + "/model_best"))
+
         # Save parquet files with added fields
         awkward.to_parquet(self.events_cl, self.output_dir + "/events_cl.parquet")
+        os.system("cp %s %s" % (self.input_dir_cl + "/summary.json", self.output_dir + "/hdna_summary_cl.json"))
         if self.has_da_events:
             awkward.to_parquet(self.events_da, self.output_dir + "/events_da.parquet")
+            os.system("cp %s %s" % (self.input_dir_da + "/summary.json", self.output_dir + "/hdna_summary_da.json"))
 
         # Save config and metadata
         self.summary = {
